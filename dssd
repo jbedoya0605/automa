@@ -1,0 +1,310 @@
+# ==========================================
+
+# CARGAR JSON A SQL SERVER
+
+# ==========================================
+
+
+$ArchivoJson = "C:\AsNetSolutions_Tecnico\Consola_trazabilidad\RevisionServidor_20260916_174817.json"
+
+
+$Json = Get-Content $ArchivoJson -Raw | ConvertFrom-Json
+
+
+$ConnectionString = "Server=.\SQLEXPRESS;Database=TrazabilidadServidores;Integrated Security=True;TrustServerCertificate=True"
+
+
+$Conexion = New-Object System.Data.SqlClient.SqlConnection
+
+$Conexion.ConnectionString = $ConnectionString
+
+$Conexion.Open()
+
+
+try
+
+{
+
+    # ==========================================
+
+    # INSERT REVISION
+
+    # ==========================================
+
+
+    $SqlRevision = @"
+
+INSERT INTO RevisionServidor
+
+(
+
+    Servidor,
+
+    FechaRevision,
+
+    NombreSO,
+
+    VersionSO,
+
+    BuildSO,
+
+    UltimoArranque
+
+)
+
+OUTPUT INSERTED.IdRevision
+
+VALUES
+
+(
+
+    @Servidor,
+
+    @FechaRevision,
+
+    @NombreSO,
+
+    @VersionSO,
+
+    @BuildSO,
+
+    @UltimoArranque
+
+)
+
+"@
+
+
+    $Cmd = $Conexion.CreateCommand()
+
+    $Cmd.CommandText = $SqlRevision
+
+
+    $Cmd.Parameters.AddWithValue("@Servidor",$Json.Servidor) | Out-Null
+
+    $Cmd.Parameters.AddWithValue("@FechaRevision",$Json.FechaRevision) | Out-Null
+
+    $Cmd.Parameters.AddWithValue("@NombreSO",$Json.SistemaOperativo.Nombre) | Out-Null
+
+    $Cmd.Parameters.AddWithValue("@VersionSO",$Json.SistemaOperativo.Version) | Out-Null
+
+    $Cmd.Parameters.AddWithValue("@BuildSO",$Json.SistemaOperativo.Build) | Out-Null
+
+    $Cmd.Parameters.AddWithValue("@UltimoArranque",$Json.SistemaOperativo.UltimoArranque) | Out-Null
+
+
+    $IdRevision = $Cmd.ExecuteScalar()
+
+
+    Write-Host "Revision creada: $IdRevision" -ForegroundColor Green
+
+
+    # ==========================================
+
+    # DISCOS
+
+    # ==========================================
+
+
+    foreach($Disco in $Json.Discos)
+
+    {
+
+        if($Disco.Unidad)
+
+        {
+
+            $Cmd = $Conexion.CreateCommand()
+
+
+            $Cmd.CommandText = @"
+
+INSERT INTO Disco
+
+(
+
+    IdRevision,
+
+    Unidad,
+
+    TamanoGB,
+
+    LibreGB,
+
+    UsadoGB,
+
+    PorcentajeLibre
+
+)
+
+VALUES
+
+(
+
+    @IdRevision,
+
+    @Unidad,
+
+    @TamanoGB,
+
+    @LibreGB,
+
+    @UsadoGB,
+
+    @PorcentajeLibre
+
+)
+
+"@
+
+
+            $Cmd.Parameters.AddWithValue("@IdRevision",$IdRevision) | Out-Null
+
+            $Cmd.Parameters.AddWithValue("@Unidad",$Disco.Unidad) | Out-Null
+
+            $Cmd.Parameters.AddWithValue("@TamanoGB",$Disco.TamanoGB) | Out-Null
+
+            $Cmd.Parameters.AddWithValue("@LibreGB",$Disco.LibreGB) | Out-Null
+
+            $Cmd.Parameters.AddWithValue("@UsadoGB",$Disco.UsadoGB) | Out-Null
+
+            $Cmd.Parameters.AddWithValue("@PorcentajeLibre",$Disco.PorcentajeLibre) | Out-Null
+
+
+            $Cmd.ExecuteNonQuery() | Out-Null
+
+        }
+
+    }
+
+
+    # ==========================================
+
+    # EVENTOS
+
+    # ==========================================
+
+
+    foreach($Evento in $Json.EventosSeguridad)
+
+    {
+
+        $Cmd = $Conexion.CreateCommand()
+
+
+        $Cmd.CommandText = @"
+
+INSERT INTO EventoSeguridad
+
+(
+
+    IdRevision,
+
+    Fecha,
+
+    EventId,
+
+    Nivel,
+
+    Proveedor
+
+)
+
+VALUES
+
+(
+
+    @IdRevision,
+
+    @Fecha,
+
+    @EventId,
+
+    @Nivel,
+
+    @Proveedor
+
+)
+
+"@
+
+
+        $Cmd.Parameters.AddWithValue("@IdRevision",$IdRevision) | Out-Null
+
+        $Cmd.Parameters.AddWithValue("@Fecha",$Evento.Fecha) | Out-Null
+
+        $Cmd.Parameters.AddWithValue("@EventId",$Evento.Id) | Out-Null
+
+        $Cmd.Parameters.AddWithValue("@Nivel",$Evento.LevelDisplayName) | Out-Null
+
+        $Cmd.Parameters.AddWithValue("@Proveedor",$Evento.ProviderName) | Out-Null
+
+
+        $Cmd.ExecuteNonQuery() | Out-Null
+
+    }
+
+
+    # ==========================================
+
+    # ACTUALIZACIONES
+
+    # ==========================================
+
+
+    foreach($Actualizacion in $Json.ActualizacionesPendientes)
+
+    {
+
+        $Cmd = $Conexion.CreateCommand()
+
+
+        $Cmd.CommandText = @"
+
+INSERT INTO ActualizacionPendiente
+
+(
+
+    IdRevision,
+
+    Titulo
+
+)
+
+VALUES
+
+(
+
+    @IdRevision,
+
+    @Titulo
+
+)
+
+"@
+
+
+        $Cmd.Parameters.AddWithValue("@IdRevision",$IdRevision) | Out-Null
+
+        $Cmd.Parameters.AddWithValue("@Titulo",$Actualizacion.Titulo) | Out-Null
+
+
+        $Cmd.ExecuteNonQuery() | Out-Null
+
+    }
+
+
+    Write-Host ""
+
+    Write-Host "Carga finalizada correctamente." -ForegroundColor Green
+
+}
+
+finally
+
+{
+
+    $Conexion.Close()
+
+}
+ 
